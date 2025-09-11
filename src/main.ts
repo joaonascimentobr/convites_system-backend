@@ -1,11 +1,15 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import helmet from 'helmet';
+import { ValidationPipe } from './common/validation.pipe';
+import { HttpExceptionFilter } from './common/http-exception.filter';
 
-async function bootstrap(){
-  const app = await NestFactory.create(AppModule);
-  app.use(helmet());
-  app.enableCors({ origin: [/localhost/, /copyconnect\.com\.br$/], credentials: true });
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3000);
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { cors: true });
+
+  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalFilters(new HttpExceptionFilter());
+
+  await app.listen(process.env.PORT || 3000);
 }
 bootstrap();

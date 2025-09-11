@@ -1,32 +1,54 @@
-generator client { provider = "prisma-client-js" }
+generator client {
+  provider = "prisma-client-js"
+}
 
-datasource db { provider = "mysql" url = env("DATABASE_URL") }
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  GENERATED
+}
 
 model User {
   id        Int      @id @default(autoincrement())
+  name      String
   email     String   @unique
   password  String
-  createdAt DateTime @default(now())
   orders    Order[]
-}
-
-model Order {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  theme     String
-  name      String
-  age       Int
-  address   String
-  mp3Path   String?
-  slug      String   @unique
-  status    String   @default("pending")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Theme {
-  id    Int    @id @default(autoincrement())
-  key   String @unique
-  label String
+  slug   String @id
+  title  String
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  user       User        @relation(fields: [userId], references: [id])
+  name       String
+  age        Int
+  address    String
+  themeSlug  String
+  theme      Theme       @relation(fields: [themeSlug], references: [slug])
+  status     OrderStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+  payment    Payment?
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  orderId       Int      @unique
+  order         Order    @relation(fields: [orderId], references: [id])
+  provider      String   // "pagseguro"
+  transactionId String   @unique
+  status        String   // "CREATED" | "PAID" | ...
+  amountCents   Int
+  createdAt     DateTime @default(now())
 }
