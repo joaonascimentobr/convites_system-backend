@@ -10,7 +10,13 @@
     "prisma:gen": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:dev": "prisma migrate dev --name init && prisma db seed"
+  
   },
+
+    "prisma": {
+      "seed": "tsx prisma/seed.ts"
+    }, 
+    
   "dependencies": {
     "@convites/shared": "workspace:*",
     "@nestjs/common": "^10.0.0",
@@ -19,24 +25,26 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
+    "@prisma/client": "5.18.0",
     "argon2": "^0.31.2",
+    "axios": "^1.7.4",
     "helmet": "^7.1.0",
+    "mime": "^4.0.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
-    "prisma": "^5.18.0",
-    "@prisma/client": "^5.18.0",
-    "zod": "^3.23.8",
-    "axios": "^1.7.4",
+    "prisma": "5.18.0",
     "uuid": "^9.0.1",
-    "mime": "^4.0.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
     "@nestjs/schematics": "^10.1.2",
     "@nestjs/testing": "^10.4.1",
-    "typescript": "^5.5.4",
-    "ts-node": "^10.9.2"
+    "@types/node": "^22.18.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.5.4"
   }
 }
