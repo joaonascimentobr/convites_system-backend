@@ -1,6 +1,7 @@
-// src/payments/payments.service.ts
+// src/payments/payments.service.ts — sem enums Prisma; usando strings
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
-import { PrismaClient, PaymentMethod, PaymentStatus, OrderStatus } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
+import { PaymentMethod, PaymentStatus } from './payment.types'
 import { PaymentGateway } from './gateway/payment.gateway'
 
 const prisma = new PrismaClient()
@@ -17,8 +18,8 @@ export class PaymentsService {
 
     await prisma.payment.upsert({
       where: { orderId },
-      update: { amountCents, method, transactionId, status: PaymentStatus.PAYMENT_PENDING },
-      create: { orderId, amountCents, method, transactionId, status: PaymentStatus.PAYMENT_PENDING },
+      update: { amountCents, method, transactionId, status: 'PAYMENT_PENDING' },
+      create: { orderId, amountCents, method, transactionId, status: 'PAYMENT_PENDING' },
     })
 
     return { transactionId, checkoutUrl, qrCode }
@@ -40,14 +41,13 @@ export class PaymentsService {
     return {
       orderId: payment.orderId,
       transactionId: payment.transactionId,
-      status: payment.status,
+      status: payment.status as PaymentStatus,
       amount: payment.amountCents,
       updatedAt: payment.updatedAt,
     }
   }
 
   async handleWebhook(payload: any) {
-    // Simplificado: ajuste aqui conforme a notificação real do PagSeguro
     const tx = payload?.transactionId || payload?.id
     const status = (payload?.status as string | undefined) ?? 'PAYMENT_PENDING'
     if (!tx) throw new BadRequestException('transactionId ausente')
@@ -55,18 +55,18 @@ export class PaymentsService {
     const payment = await prisma.payment.findUnique({ where: { transactionId: tx } })
     if (!payment) throw new NotFoundException('Pagamento não encontrado')
 
-    let newStatus: PaymentStatus = PaymentStatus.PAYMENT_PENDING
-    if (/paid|approved/i.test(status)) newStatus = PaymentStatus.PAYMENT_PAID
-    else if (/canceled|cancelled|refused/i.test(status)) newStatus = PaymentStatus.PAYMENT_CANCELED
-    else if (/authorized/i.test(status)) newStatus = PaymentStatus.PAYMENT_AUTHORIZED
+    let newStatus: PaymentStatus = 'PAYMENT_PENDING'
+    if (/paid|approved/i.test(status)) newStatus = 'PAYMENT_PAID'
+    else if (/canceled|cancelled|refused/i.test(status)) newStatus = 'PAYMENT_CANCELED'
+    else if (/authorized/i.test(status)) newStatus = 'PAYMENT_AUTHORIZED'
 
     const updated = await prisma.payment.update({
       where: { transactionId: tx },
       data: { status: newStatus },
     })
 
-    if (newStatus === PaymentStatus.PAYMENT_PAID) {
-      await prisma.order.update({ where: { id: updated.orderId }, data: { status: OrderStatus.PAID } })
+    if (newStatus === 'PAYMENT_PAID') {
+      await prisma.order.update({ where: { id: updated.orderId }, data: { status: 'PAID' } })
     }
 
     return { ok: true }

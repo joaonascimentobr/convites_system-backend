@@ -1,11 +1,11 @@
-// prisma/schema.prisma — SQLite version
+// prisma/schema.prisma — SQLite, sem enums (usar strings com defaults)
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL") // e.g., file:./prisma/dev.db
+  url      = env("DATABASE_URL") // ex.: file:./prisma/dev.db
 }
 
 model User {
@@ -26,55 +26,35 @@ model Theme {
   musicUrl String?
   fontUrl  String?
   orders   Order[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Order {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   themeId     String?
-  theme       Theme?      @relation(fields: [themeId], references: [id])
+  theme       Theme?   @relation(fields: [themeId], references: [id])
   name        String
   age         Int
   address     String
-  slug        String      @unique
-  status      OrderStatus @default(PENDING)
+  slug        String   @unique
+  status      String   @default("PENDING") // PENDING | PAID | CANCELED | GENERATED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   payment     Payment?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
 }
 
 model Payment {
-  id            String         @id @default(cuid())
-  provider      String         @default("pagseguro")
-  method        PaymentMethod  @default(PIX)
-  status        PaymentStatus  @default(PAYMENT_PENDING)
+  id            String   @id @default(cuid())
+  provider      String   @default("pagseguro")
+  method        String   @default("PIX")               // PIX | CARD
+  status        String   @default("PAYMENT_PENDING")   // PAYMENT_* strings
   amountCents   Int
-  transactionId String         @unique
-  orderId       String         @unique
-  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-}
-
-enum OrderStatus {
-  PENDING
-  PAID
-  CANCELED
-  GENERATED
-}
-
-enum PaymentStatus {
-  PAYMENT_PENDING
-  PAYMENT_AUTHORIZED
-  PAYMENT_PAID
-  PAYMENT_CANCELED
-}
-
-enum PaymentMethod {
-  PIX
-  CARD
+  transactionId String   @unique
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
