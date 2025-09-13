@@ -1,11 +1,10 @@
-// prisma/schema.prisma — SQLite, sem enums (usar strings com defaults)
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL") // ex.: file:./prisma/dev.db
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -13,48 +12,42 @@ model User {
   email        String   @unique
   passwordHash String
   name         String?
-  orders       Order[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  orders       Order[]
 }
 
 model Theme {
-  id       String  @id @default(cuid())
-  name     String
-  slug     String  @unique
-  bgUrl    String?
-  musicUrl String?
-  fontUrl  String?
-  orders   Order[]
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  bgUrl     String?
+  musicUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orders    Order[]
 }
 
 model Order {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   themeId     String?
-  theme       Theme?   @relation(fields: [themeId], references: [id])
-  name        String
-  age         Int
-  address     String
-  slug        String   @unique
-  status      String   @default("PENDING") // PENDING | PAID | CANCELED | GENERATED
+  amountCents Int
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  theme       Theme?   @relation(fields: [themeId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   payment     Payment?
 }
 
 model Payment {
-  id            String   @id @default(cuid())
-  provider      String   @default("pagseguro")
-  method        String   @default("PIX")               // PIX | CARD
-  status        String   @default("PAYMENT_PENDING")   // PAYMENT_* strings
-  amountCents   Int
-  transactionId String   @unique
-  orderId       String   @unique
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  method      String   @default("PIX")
+  status      String   @default("PAYMENT_PENDING")
+  amountCents Int
+  orderId     String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
