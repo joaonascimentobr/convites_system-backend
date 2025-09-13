@@ -3,12 +3,17 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaClient } from '@prisma/client'
 import { PaymentMethod, PaymentStatus } from './payment.types'
 import { PaymentGateway } from './gateway/payment.gateway'
+import { InviteService } from '../invite/invite.service'
+
+
 
 const prisma = new PrismaClient()
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly gateway: PaymentGateway) {}
+constructor(private readonly gateway: PaymentGateway, private readonly invites: InviteService) {}
+
+  
 
   async checkout(orderId: string, amountCents: number, method: PaymentMethod) {
     const order = await prisma.order.findUnique({ where: { id: orderId } })
@@ -21,6 +26,8 @@ export class PaymentsService {
       update: { amountCents, method, transactionId, status: 'PAYMENT_PENDING' },
       create: { orderId, amountCents, method, transactionId, status: 'PAYMENT_PENDING' },
     })
+
+
 
     return { transactionId, checkoutUrl, qrCode }
   }
@@ -66,9 +73,10 @@ export class PaymentsService {
     })
 
     if (newStatus === 'PAYMENT_PAID') {
-      await prisma.order.update({ where: { id: updated.orderId }, data: { status: 'PAID' } })
-    }
+    await prisma.order.update({ where: { id: updated.orderId }, data: { status: 'PAID' } })
+    await this.invites.generateForOrder(updated.orderId) // <-- gera o HTML do convite
+  }
+  return { ok: true }
 
-    return { ok: true }
   }
 }

@@ -13,6 +13,10 @@ import { PaymentsModule } from './payments/payments.module';
       isGlobal: true,
       validate: (env) => envSchema.parse(env),
     }),
+      ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'), // vai servir /public/*
+      serveRoot: '/',                          // /i/slug.html ficará acessível em https://seu-backend/i/slug.html
+    }),
     PrismaModule,
     AuthModule,
     ThemesModule,
