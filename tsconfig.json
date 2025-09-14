@@ -16,5 +16,5 @@
     "src/payments/**/*.ts",
     "src/invite/**/*.ts",
     "src/types/**/*.d.ts"
-  ]
+, "_disabled/payments-.module.ts"  ]
 }

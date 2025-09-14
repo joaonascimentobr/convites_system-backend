@@ -23,7 +23,7 @@ model Theme {
   slug      String   @unique
   bgUrl     String?
   musicUrl  String?
-  fontUrl  String?
+  fontUrl   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
@@ -60,7 +60,7 @@ model Payment {
   id          String   @id @default(cuid())
   method      String   @default("PIX")
   status      String   @default("PAYMENT_PENDING")
-  transactionId String?  @unique
+  transactionId String  @unique
   amountCents Int
   orderId     String   @unique
   createdAt   DateTime @default(now())

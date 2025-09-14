@@ -1,14 +1,22 @@
-// apps/backend/src/prisma/prisma.service.ts
-import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common'
+import { INestApplication, Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
 import { PrismaClient } from '@prisma/client'
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     await this.$connect()
-    try { await this.$executeRawUnsafe('PRAGMA journal_mode = WAL') } catch {}
+    try { await this.$queryRawUnsafe('PRAGMA journal_mode = WAL') } catch {}
   }
+
+  async onModuleDestroy() {
+    await this.$disconnect()
+  }
+
+  // Nada de this.$on('beforeExit') no engine "library"
   async enableShutdownHooks(app: INestApplication) {
-    (this as any).$on('beforeExit', async () => { await app.close() })
+    const cleanup = async () => { await app.close() }
+    process.on('SIGINT', cleanup)
+    process.on('SIGTERM', cleanup)
+    process.on('beforeExit', cleanup)
   }
 }
