@@ -23,6 +23,7 @@ model Theme {
   slug      String   @unique
   bgUrl     String?
   musicUrl  String?
+  fontUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
@@ -31,20 +32,35 @@ model Theme {
 model Order {
   id          String   @id @default(cuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   themeId     String?
-  amountCents Int
-  status      String   @default("PENDING")
+  theme       Theme?   @relation(fields: [themeId], references: [id])
+
+  // 🔽 dados do convite
+  name        String                // nome do aniversariante
+  age         Int                   // idade
+  address     String                // endereço/descrição do evento
+  slug        String   @unique      // usado para o link público: /i/<slug>.html
+
+  // 🔽 status do pedido
+  status      String   @default("PENDING") // PENDING | PAID | GENERATED | CANCELED
+
+  // opcional: pode manter se quiser registrar o preço também no pedido
+  amountCents Int?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  theme       Theme?   @relation(fields: [themeId], references: [id])
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   payment     Payment?
 }
+
 
 model Payment {
   id          String   @id @default(cuid())
   method      String   @default("PIX")
   status      String   @default("PAYMENT_PENDING")
+  transactionId String?  @unique
   amountCents Int
   orderId     String   @unique
   createdAt   DateTime @default(now())

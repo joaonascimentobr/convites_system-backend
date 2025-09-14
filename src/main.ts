@@ -1,15 +1,11 @@
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe } from './common/validation.pipe';
-import { HttpExceptionFilter } from './common/http-exception.filter';
+import 'reflect-metadata'            // <- tem que ser a primeira linha
+import { NestFactory } from '@nestjs/core'
+import { AppModule } from './app.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
-
-  app.useGlobalPipes(new ValidationPipe());
-  app.useGlobalFilters(new HttpExceptionFilter());
-
-  await app.listen(process.env.PORT || 3000);
+  const app = await NestFactory.create(AppModule, { cors: true })
+  const port = Number(process.env.PORT || 3000)
+  await app.listen(port)
+  console.log(`[API] online em http://localhost:${port}`)
 }
-bootstrap();
+bootstrap()

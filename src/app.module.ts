@@ -1,27 +1,21 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { envSchema } from './config/env';
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { OrdersModule } from './orders/orders.module';
-import { ThemesModule } from './themes/themes.module';
-import { PaymentsModule } from './payments/payments.module';
+// apps/backend/src/app.module.ts
+import { Module } from '@nestjs/common'
+import { ServeStaticModule } from '@nestjs/serve-static'
+import { join } from 'path'
+
+import { PrismaService } from './prisma/prisma.service'
+import { PaymentsController } from './payments/payments.controller'
+import { PaymentsService } from './payments/payments.service'
+import { InviteService } from './invite/invite.service'
+import { PagSeguroGateway } from './payments/gateway/pagseguro.gateway'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate: (env) => envSchema.parse(env),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'), // serve /public/*
     }),
-      ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public'), // vai servir /public/*
-      serveRoot: '/',                          // /i/slug.html ficará acessível em https://seu-backend/i/slug.html
-    }),
-    PrismaModule,
-    AuthModule,
-    ThemesModule,
-    OrdersModule,
-    PaymentsModule,
   ],
+  controllers: [PaymentsController],
+  providers: [PrismaService, PaymentsService, InviteService, PagSeguroGateway],
 })
 export class AppModule {}
