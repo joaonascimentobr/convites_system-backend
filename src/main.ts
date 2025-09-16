@@ -1,23 +1,23 @@
-// src/main.ts
+// apps/backend/src/main.ts
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import express, { Request, Response } from 'express';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
 
-  // Capturar o raw body SOMENTE no webhook (para HMAC)
+  // raw body só no webhook
   app.use(
     '/payments/pagseguro/notify',
     express.json({
-      verify: (req: Request & { rawBody?: Buffer }, _res: Response, buf: Buffer) => {
-        (req as any).rawBody = buf;
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
       },
     }),
   );
 
-  const port = Number(process.env.PORT || 3000);
-  await app.listen(port);
+  const port = parseInt(process.env.PORT ?? '3000', 10); // <<< deixe só esta linha
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();
