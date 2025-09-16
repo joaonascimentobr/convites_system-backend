@@ -1,7 +1,7 @@
 // src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { HealthController } from './health.controller';
+import { HealthController } from 'health.controller';
 import { join } from 'path';
 import { PaymentsModule } from './payments/payments-.module';
 
@@ -12,5 +12,7 @@ import { PaymentsModule } from './payments/payments-.module';
     }),
     PaymentsModule,
   ],
+
+  controllers: [HealthController],
 })
 export class AppModule {}
