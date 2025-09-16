@@ -10,7 +10,10 @@
     "useDefineForClassFields": false,
     "outDir": "./dist",
     "baseUrl": "./src",
-    "types": ["node", "express"]
+    "types": ["node", "express"],
+    "rootDir": "./src",
+    "declaration": false,
+    "sourceMap": true
   },
   "include": [
     "src/main.ts",
