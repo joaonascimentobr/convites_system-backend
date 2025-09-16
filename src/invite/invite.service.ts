@@ -1,60 +1,27 @@
-import { Injectable } from '@nestjs/common'
-import { PrismaClient } from '@prisma/client'
-import { promises as fs } from 'fs'
-import { join } from 'path'
-import Mustache from 'mustache'
-
-const prisma = new PrismaClient()
+// src/invite/invite.service.ts
+import { Injectable } from '@nestjs/common';
+import Mustache from 'mustache';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 @Injectable()
 export class InviteService {
-  private templatePath = join(process.cwd(), 'templates', 'invite_template.html')
-  private outDir = join(process.cwd(), 'public', 'i')
+  async render(order: any) {
+    const theme = order.theme ?? {};
+    const html = Mustache.render(
+      `<html>
+        <head>{{#theme.fontUrl}}<link href="{{theme.fontUrl}}" rel="stylesheet">{{/theme.fontUrl}}</head>
+        <body style="background:url('{{theme.bgUrl}}') center/cover no-repeat">
+          <h1>{{name}} - {{age}} anos</h1>
+          <p>{{address}}</p>
+        </body>
+      </html>`,
+      { ...order, theme },
+    );
 
-  async generateForOrder(orderId: string) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { theme: true, user: true },
-    })
-    if (!order) throw new Error('Order not found')
-
-    // garante slug
-    const slug = order.slug || this.slugify(`${order.name}-${order.age}-${order.id.slice(0,6)}`)
-    if (!order.slug) {
-      await prisma.order.update({ where: { id: order.id }, data: { slug } })
-    }
-
-    // dados do tema
-    const bgUrl = order.theme?.bgUrl ?? ''
-    const musicUrl = order.theme?.musicUrl ?? ''
-    const fontUrl = order.theme?.fontUrl ?? ''
-
-    // lê template
-    const tpl = await fs.readFile(this.templatePath, 'utf-8')
-    const urlConvite = `${process.env.BASE_URL?.replace(/\/$/, '') || ''}/i/${slug}.html`
-    const html = Mustache.render(tpl, {
-      nome: order.name,
-      idade: order.age,
-      endereco: order.address,
-      bgUrl, musicUrl, fontUrl,
-      url_convite: urlConvite,
-    })
-
-    await fs.mkdir(this.outDir, { recursive: true })
-    const outFile = join(this.outDir, `${slug}.html`)
-    await fs.writeFile(outFile, html, 'utf-8')
-
-    // marca como GERADO (opcional)
-    await prisma.order.update({ where: { id: order.id }, data: { status: 'GENERATED' } })
-
-    return { slug, url: urlConvite, file: outFile }
-  }
-
-  private slugify(s: string) {
-    return s
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase()
+    const outDir = join(process.cwd(), 'public', 'invites', order.slug);
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'index.html'), html, 'utf8');
+    return { path: `/invites/${order.slug}/index.html` };
   }
 }

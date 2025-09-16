@@ -1,13 +1,16 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
+ "compilerOptions": {
     "target": "es2019",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "moduleResolution": "node",
-    "esModuleInterop": true,
+    "useDefineForClassFields": false,
     "outDir": "./dist",
-    "skipLibCheck": true
+    "baseUrl": "./src",
+    "types": ["node", "express"]
   },
   "include": [
     "src/main.ts",
@@ -16,5 +19,7 @@
     "src/payments/**/*.ts",
     "src/invite/**/*.ts",
     "src/types/**/*.d.ts"
-, "_disabled/payments-.module.ts"  ]
+, "src/payments/payments-.module.ts"  ],
+
+  "exclude": ["node_modules", "dist"]
 }

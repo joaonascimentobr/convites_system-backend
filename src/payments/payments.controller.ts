@@ -1,26 +1,29 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common'
-import { PaymentsService } from './payments.service'
+import { Controller, Post, Get, Body, Query } from '@nestjs/common';
+import { PaymentsService } from './payments.service';
+import { PaymentMethod } from './payment.types';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly svc: PaymentsService) {}
+  constructor(private readonly payments: PaymentsService) {}
 
   @Post('checkout')
-  checkout(@Body() body: { orderId: string; amountCents: number; method?: 'PIX' | 'CARD' }) {
-    return this.svc.checkout(body.orderId, body.amountCents, (body.method ?? 'PIX') as any)
+  async checkout(
+    @Body() body: { orderId: string; amountCents: number; method: PaymentMethod },
+  ) {
+    const { orderId, amountCents, method } = body;
+    return this.payments.checkout(orderId, amountCents, method);
   }
 
   @Get('status')
-  getStatus(
-    @Query('orderId') orderId?: string,
-    @Query('reference') reference?: string,
+  async status(
     @Query('transaction_id') transactionId?: string,
+    @Query('order_id')      orderId?: string,
   ) {
-    return this.svc.getStatus({ orderId, reference, transactionId })
+    return this.payments.getStatus({ transactionId, orderId });
   }
 
   @Post('pagseguro/notify')
-  webhook(@Body() payload: any) {
-    return this.svc.handleWebhook(payload)
+  async notify(@Body() payload: any) {
+    return this.payments.handleWebhook(payload);
   }
 }

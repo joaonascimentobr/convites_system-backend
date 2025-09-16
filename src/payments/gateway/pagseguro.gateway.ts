@@ -1,14 +1,14 @@
 // src/payments/gateway/pagseguro.gateway.ts
-import { Injectable } from '@nestjs/common'
-import { PaymentGateway, CheckoutInput, CheckoutOutput } from './payment.gateway'
-import { randomUUID } from 'crypto'
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { PaymentMethod } from '../payment.types';
 
-// Placeholder — conecte na API real do PagSeguro depois (PIX / Cartão).
+export type CheckoutInput = { orderId: string; amountCents: number; method: PaymentMethod };
+export type CheckoutOutput = { transactionId: string; checkoutUrl: string | null; qrCode: string | null };
+
 @Injectable()
-export class PagSeguroGateway implements PaymentGateway {
-  async checkout({ orderId, amountCents, method }: { orderId: string; amountCents: number; method: string }) {
-    // stub local: gera um id único
-   return { transactionId: `pg_${randomUUID()}`, checkoutUrl: null, qrCode: null }
+export class PagSeguroGateway {
+  async checkout(_input: CheckoutInput): Promise<CheckoutOutput> {
+    return { transactionId: `pg_${randomUUID()}`, checkoutUrl: null, qrCode: null };
   }
 }
-
