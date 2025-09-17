@@ -2,9 +2,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PagSeguroGateway } from './gateway/pagseguro.gateway';
-
 // Importa TUDO do Prisma por aqui (enums + tipos de erro)
 import { Prisma, PaymentMethod, PaymentStatus } from '@prisma/client';
+
+
 
 @Injectable()
 export class PaymentsService {

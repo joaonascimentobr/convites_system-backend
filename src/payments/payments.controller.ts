@@ -1,18 +1,17 @@
 import { Controller, Post, Get, Body, Query } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { PaymentMethod } from './payment.types';
+import { CheckoutInput, PaymentMethod } from './payment.types';
+
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
   @Post('checkout')
-  async checkout(
-    @Body() body: { orderId: string; amountCents: number; method: PaymentMethod },
-  ) {
-    const { orderId, amountCents, method } = body;
-    return this.payments.checkout(orderId, amountCents, method);
-  }
+async checkout(@Body() body: CheckoutInput) {
+  const { orderId, amountCents, method } = body;
+  return this.payments.checkout({ orderId, amountCents, method });
+}
 
   @Get('status')
   async status(
