@@ -1,14 +1,22 @@
 // src/payments/gateway/pagseguro.gateway.ts
-import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
-import { PaymentMethod } from '../payment.types';
 
-export type CheckoutInput = { orderId: string; amountCents: number; method: PaymentMethod };
-export type CheckoutOutput = { transactionId: string; checkoutUrl: string | null; qrCode: string | null };
+import { Injectable } from '@nestjs/common';
+import {
+  CheckoutInput,
+  GatewayTx,
+  PaymentStatus,
+} from '../payment.types';
 
 @Injectable()
 export class PagSeguroGateway {
-  async checkout(_input: CheckoutInput): Promise<CheckoutOutput> {
-    return { transactionId: `pg_${randomUUID()}`, checkoutUrl: null, qrCode: null };
+  /**
+   * Integração com o PagSeguro.
+   * Troque este stub pela chamada real quando estiver pronto.
+   */
+  async checkout(input: CheckoutInput): Promise<GatewayTx> {
+    // TODO: chamar API real do PagSeguro e mapear o retorno para { id, status }
+    // Mantém o contrato e evita quebrar o resto do app.
+    const id = `ps_${Date.now()}`;
+    return { id, status: PaymentStatus.PENDING };
   }
 }

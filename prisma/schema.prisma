@@ -58,8 +58,8 @@ model Order {
 
 model Payment {
   id          String   @id @default(cuid())
-  method      String   @default("PIX")
-  status      String   @default("PAYMENT_PENDING")
+  method      PaymentMethod
+  status        PaymentStatus   @default(PENDING)
   transactionId String  @unique
   amountCents Int
   orderId     String   @unique
@@ -67,3 +67,16 @@ model Payment {
   updatedAt   DateTime @updatedAt
   order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
+
+enum PaymentMethod {
+  PIX
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+}
+

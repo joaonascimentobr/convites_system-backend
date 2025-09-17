@@ -1,18 +1,31 @@
 // src/payments/payment.types.ts
-export type PaymentMethod = 'PIX' | 'CARD'
-export type PaymentStatus =
-  | 'PAYMENT_PENDING'
-  | 'PAYMENT_AUTHORIZED'
-  | 'PAYMENT_PAID'
-  | 'PAYMENT_CANCELED'
 
-export interface CheckoutInput {
-  orderId: string
-  amountCents: number
-  method: PaymentMethod
+export enum PaymentMethod {
+  PIX = 'PIX',
+  CARD = 'CARD',
 }
-export interface CheckoutOutput {
-  transactionId: string
-  checkoutUrl: string | null
-  qrCode: string | null
+
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  FAILED = 'FAILED',
+  CANCELED = 'CANCELED',
 }
+
+/**
+ * Entrada padrão usada pelo service/gateways
+ */
+export type CheckoutInput = {
+  orderId: string;
+  amountCents: number;
+  method: PaymentMethod;
+};
+
+/**
+ * Resposta mínima vinda de um gateway de pagamento
+ * (id da transação + status).
+ */
+export type GatewayTx = {
+  id: string;
+  status: PaymentStatus;
+};
