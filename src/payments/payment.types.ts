@@ -1,5 +1,6 @@
 // src/payments/payment.types.ts
-import { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
+import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
+
 
 export type PaymentMethod = PrismaPaymentMethod; // <- alinha com o Prisma
 

@@ -3,7 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PagSeguroGateway } from './gateway/pagseguro.gateway';
 // Importa TUDO do Prisma por aqui (enums + tipos de erro)
-import { Prisma} from '@prisma/client';
+import { Prisma, PaymentMethod as PrismaPaymentMethodEnum } from '@prisma/client';
 import { CheckoutInput, PaymentMethod, PaymentStatus } from './payment.types';
 
 
@@ -20,10 +20,17 @@ export class PaymentsService {
    * - Se já existir, retorna o mesmo registro
    * - Senão, cria. Em caso de corrida, trata P2002 e retorna o criado pela outra thread
    */
-  async checkout(input: { orderId: string; amountCents: number; method: PaymentMethod }) {
-    const { orderId, amountCents, method } = input;
+  async checkout(input: {
+    orderId: string;
+    amountCents: number | string;
+    method: PaymentMethod | string;
+  }) {
+    const { orderId } = input;
+    const amountCents = this.normalizeAmount(input.amountCents);
+    const method = this.normalizeMethod(input.method);
 
-    if (!orderId || amountCents <= 0) {
+        if (!orderId) {
+
       throw new BadRequestException('Dados inválidos para checkout');
     }
 
@@ -52,6 +59,37 @@ export class PaymentsService {
       }
       throw e;
     }
+  }
+
+    private normalizeAmount(amount: number | string): number {
+    const parsed = typeof amount === 'string' ? Number(amount) : amount;
+
+    if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed <= 0) {
+      throw new BadRequestException('Dados inválidos para checkout');
+    }
+
+    const rounded = Math.trunc(parsed);
+
+    if (rounded !== parsed) {
+      throw new BadRequestException('Dados inválidos para checkout');
+    }
+
+    return rounded;
+  }
+
+  private normalizeMethod(method: PaymentMethod | string): PaymentMethod {
+    const validMethods = Object.values(PrismaPaymentMethodEnum) as PaymentMethod[];
+
+    if (typeof method === 'string') {
+      const normalized = method.trim().toUpperCase();
+      if (validMethods.includes(normalized as PaymentMethod)) {
+        return normalized as PaymentMethod;
+      }
+    } else if (validMethods.includes(method)) {
+      return method;
+    }
+
+    throw new BadRequestException('Método de pagamento inválido');
   }
 
   async getStatus(params: { orderId?: string; transactionId?: string }) {
