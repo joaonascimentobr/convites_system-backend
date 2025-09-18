@@ -7,11 +7,14 @@ import { CheckoutInput, PaymentMethod } from './payment.types';
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
-  @Post('checkout')
+// no controller, só pra diagnosticar
+@Post('checkout')
 async checkout(@Body() body: CheckoutInput) {
+  console.log('checkout body:', body, typeof body.amountCents);
   const { orderId, amountCents, method } = body;
   return this.payments.checkout({ orderId, amountCents, method });
 }
+
 
   @Get('status')
   async status(
