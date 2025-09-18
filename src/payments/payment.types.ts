@@ -12,7 +12,7 @@ export enum PaymentStatus {
 export type CheckoutInput = {
   orderId: string;
   amountCents: number;
-  method: PaymentMethod; // agora é o do Prisma
+  method: PaymentMethod ; // agora é o do Prisma
 };
 
 export type GatewayTx = {
