@@ -1,67 +1,75 @@
 // src/payments/payments.service.ts
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PagSeguroGateway } from './gateway/pagseguro.gateway';
-// Importa TUDO do Prisma por aqui (enums + tipos de erro)
-import { Prisma, PaymentMethod as PrismaPaymentMethodEnum } from '@prisma/client';
-import { CheckoutInput, PaymentMethod, PaymentStatus } from './payment.types';
-
-
+import { PaymentMethod, PaymentStatus } from './payment.types';
 
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly pagSeguro: PagSeguroGateway,
+    private readonly pagSeguroGateway: PagSeguroGateway,
   ) {}
 
-  /**
-   * Idempotente por orderId:
-   * - Se já existir, retorna o mesmo registro
-   * - Senão, cria. Em caso de corrida, trata P2002 e retorna o criado pela outra thread
-   */
   async checkout(input: {
     orderId: string;
     amountCents: number | string;
     method: PaymentMethod | string;
   }) {
-    const { orderId } = input;
+    const orderId = input.orderId?.trim();
     const amountCents = this.normalizeAmount(input.amountCents);
     const method = this.normalizeMethod(input.method);
 
-        if (!orderId) {
-
+    if (!orderId) {
       throw new BadRequestException('Dados inválidos para checkout');
     }
 
-    // 1) fast-path
-    const found = await this.prisma.payment.findUnique({ where: { orderId } });
-    if (found) return found;
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
 
-    // 2) cria transação no gateway (stub/real)
-    const tx = await this.pagSeguro.checkout({ orderId, amountCents, method });
+    if (!order) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
 
-    // 3) tenta gravar; se colidir, busca e retorna
+    const existingPayment = await this.prisma.payment.findUnique({
+      where: { orderId },
+    });
+
+    if (existingPayment) {
+      return existingPayment;
+    }
+
+    const tx = await this.pagSeguroGateway.checkout({
+      orderId,
+      amountCents,
+      method,
+    });
+
     try {
       return await this.prisma.payment.create({
         data: {
           orderId,
           amountCents,
-          method,                         // Prisma enum
+          method,
           transactionId: tx.id,
-          status: tx.status ?? PaymentStatus.PENDING, // Prisma enum
+          status: tx.status ?? PaymentStatus.PENDING,
         },
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         const concurrent = await this.prisma.payment.findUnique({ where: { orderId } });
-        if (concurrent) return concurrent;
+        if (concurrent) {
+          return concurrent;
+        }
       }
+
       throw e;
     }
   }
 
-    private normalizeAmount(amount: number | string): number {
+  private normalizeAmount(amount: number | string): number {
     const parsed = typeof amount === 'string' ? Number(amount) : amount;
 
     if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed <= 0) {
@@ -69,7 +77,6 @@ export class PaymentsService {
     }
 
     const rounded = Math.trunc(parsed);
-
     if (rounded !== parsed) {
       throw new BadRequestException('Dados inválidos para checkout');
     }
@@ -78,34 +85,117 @@ export class PaymentsService {
   }
 
   private normalizeMethod(method: PaymentMethod | string): PaymentMethod {
-    const validMethods = Object.values(PrismaPaymentMethodEnum) as PaymentMethod[];
+    const validMethods: PaymentMethod[] = ['PIX', 'CARD'];
 
     if (typeof method === 'string') {
       const normalized = method.trim().toUpperCase();
-      if (validMethods.includes(normalized as PaymentMethod)) {
+      if ((validMethods as readonly string[]).includes(normalized)) {
         return normalized as PaymentMethod;
       }
-    } else if (validMethods.includes(method)) {
-      return method;
     }
 
     throw new BadRequestException('Método de pagamento inválido');
   }
 
   async getStatus(params: { orderId?: string; transactionId?: string }) {
+    const filters = [
+      params.orderId ? { orderId: params.orderId } : undefined,
+      params.transactionId ? { transactionId: params.transactionId } : undefined,
+    ].filter(Boolean) as Array<{ orderId?: string; transactionId?: string }>;
+
+    if (!filters.length) {
+      throw new BadRequestException('Informe orderId ou transactionId');
+    }
+
     const payment = await this.prisma.payment.findFirst({
       where: {
-        OR: [
-          params.orderId ? { orderId: params.orderId } : undefined,
-          params.transactionId ? { transactionId: params.transactionId } : undefined,
-        ].filter(Boolean) as any,
+        OR: filters,
       },
     });
+
     return payment ?? null;
   }
 
-  async handleWebhook(_payload: any) {
-    // TODO: validar HMAC, mapear status e dar update por transactionId
-    return { ok: true };
+  async handleWebhook(payload: any) {
+    const transactionId = this.extractTransactionId(payload);
+    const status = this.extractStatus(payload);
+
+    if (!transactionId) {
+      throw new BadRequestException('Webhook sem transactionId');
+    }
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { transactionId },
+    });
+
+    if (!payment) {
+      return { ok: true, ignored: true };
+    }
+
+    if (!status || status === payment.status) {
+      return { ok: true, payment };
+    }
+
+    const updatedPayment = await this.prisma.payment.update({
+      where: { transactionId },
+      data: { status },
+    });
+
+    if (status === PaymentStatus.PAID) {
+      await this.prisma.order.update({
+        where: { id: payment.orderId },
+        data: { status: PaymentStatus.PAID },
+      });
+    }
+
+    if (status === PaymentStatus.FAILED) {
+      await this.prisma.order.update({
+        where: { id: payment.orderId },
+        data: { status: PaymentStatus.FAILED },
+      });
+    }
+
+    return { ok: true, payment: updatedPayment };
+  }
+
+  private extractTransactionId(payload: any): string | null {
+    const rawId =
+      payload?.transactionId ??
+      payload?.transaction_id ??
+      payload?.id ??
+      payload?.data?.transactionId ??
+      payload?.data?.transaction_id ??
+      null;
+
+    return typeof rawId === 'string' && rawId.trim() ? rawId.trim() : null;
+  }
+
+  private extractStatus(payload: any): PaymentStatus | null {
+    const rawStatus =
+      payload?.status ??
+      payload?.paymentStatus ??
+      payload?.payment_status ??
+      payload?.data?.status ??
+      null;
+
+    if (typeof rawStatus !== 'string') {
+      return null;
+    }
+
+    const normalized = rawStatus.trim().toUpperCase();
+
+    if (normalized === PaymentStatus.PAID) {
+      return PaymentStatus.PAID;
+    }
+
+    if (normalized === PaymentStatus.FAILED) {
+      return PaymentStatus.FAILED;
+    }
+
+    if (normalized === PaymentStatus.PENDING) {
+      return PaymentStatus.PENDING;
+    }
+
+    return null;
   }
 }

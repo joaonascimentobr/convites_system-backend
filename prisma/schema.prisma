@@ -3,10 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
-
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -58,25 +57,13 @@ model Order {
 
 model Payment {
   id          String   @id @default(cuid())
-  method      PaymentMethod
-  status        PaymentStatus   @default(PENDING)
+  method      String
+  status      String   @default("PENDING")
   transactionId String  @unique
   amountCents Int
   orderId     String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-}
-
-enum PaymentMethod {
-  PIX
-  CARD
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  CANCELED
 }
 

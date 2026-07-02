@@ -13,7 +13,7 @@ export class PagSeguroGateway {
       id: `pg_${randomUUID()}`,
       status: PaymentStatus.PENDING,
       checkoutUrl: null,
-      qrCode: null,
+      qrCodeUrl: null,
     };
   }
 }

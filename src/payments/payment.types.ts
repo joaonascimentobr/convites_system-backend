@@ -1,28 +1,24 @@
-// src/payments/payment.types.ts
-import type { PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
-
-
-export type PaymentMethod = PrismaPaymentMethod; // <- alinha com o Prisma
+export type PaymentMethod = 'PIX' | 'CARD';
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
   FAILED = 'FAILED',
+  
 }
 
 export type CheckoutInput = {
   orderId: string;
   amountCents: number;
-  method: PaymentMethod ; // agora é o do Prisma
+  method: PaymentMethod;
 };
 
 export type GatewayTx = {
   id: string;
   status: PaymentStatus;
-  checkoutUrl?: string | null; // opcionais, se o gateway quiser retornar
-  qrCode?: string | null;
+  checkoutUrl?: string | null;
+  qrCodeUrl?: string | null;
 };
-
 
 export type CheckoutOutput = {
   id: string;

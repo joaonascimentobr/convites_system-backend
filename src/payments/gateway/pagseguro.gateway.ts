@@ -12,7 +12,7 @@ export class PagSeguroGateway {
       id,
       status: PaymentStatus.PENDING,
       checkoutUrl: null, // ok porque agora é opcional
-      qrCode: null,      // idem
+      qrCodeUrl: null,   // idem
     };
   }
 }
