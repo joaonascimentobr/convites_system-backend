@@ -7,6 +7,9 @@ import * as express from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
 
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
   // raw body só no webhook
   app.use(
     '/payments/pagseguro/notify',
