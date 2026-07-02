@@ -4,6 +4,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from 'health.controller';
 import { join } from 'path';
+import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments-.module';
 
 @Module({
@@ -12,6 +13,7 @@ import { PaymentsModule } from './payments/payments-.module';
       rootPath: join(process.cwd(), 'public'),
     }),
     AuthModule,
+    OrdersModule,
     PaymentsModule,
   ],
 
