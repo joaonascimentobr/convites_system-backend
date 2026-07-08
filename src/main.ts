@@ -7,8 +7,8 @@ import * as express from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // raw body só no webhook
   app.use(

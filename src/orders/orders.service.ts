@@ -15,6 +15,7 @@ type CreateOrderInput = {
   stateCode?: string;
   complement?: string;
   referencePoint?: string;
+  inviteImageUrl?: string;
   themeSlug?: string;
   giftIdeas?: string;
   possibleGuests?: Array<{ name?: string; age?: number }>;
@@ -68,6 +69,7 @@ export class OrdersService {
     const normalizedAddress = this.normalizeAddress(input);
     const theme = await this.findTheme(input.themeSlug);
     const slug = await this.generateUniqueSlug(name);
+    const inviteImageUrl = this.normalizeInviteImage(input.inviteImageUrl);
     const giftIdeas = this.normalizeGiftIdeas(input.giftIdeas);
     const possibleGuests = this.normalizePossibleGuests(input.possibleGuests);
 
@@ -85,6 +87,7 @@ export class OrdersService {
         stateCode: normalizedAddress.stateCode,
         complement: normalizedAddress.complement,
         referencePoint: normalizedAddress.referencePoint,
+        inviteImageUrl,
         giftIdeas,
         possibleGuests: JSON.stringify(possibleGuests),
         slug,
@@ -144,6 +147,7 @@ export class OrdersService {
     stateCode: string;
     complement: string;
     referencePoint: string;
+    inviteImageUrl: string;
     giftIdeas: string;
     possibleGuests: string;
     slug: string;
@@ -167,6 +171,7 @@ export class OrdersService {
       stateCode: order.stateCode,
       complement: order.complement,
       referencePoint: order.referencePoint,
+      inviteImageUrl: order.inviteImageUrl,
       giftIdeas: order.giftIdeas,
       possibleGuests: this.parsePossibleGuests(order.possibleGuests),
       slug: order.slug,
@@ -336,6 +341,24 @@ export class OrdersService {
 
   private normalizeOptionalString(value?: string) {
     return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private normalizeInviteImage(value?: string) {
+    const normalized = this.normalizeOptionalString(value);
+    if (!normalized) {
+      return '';
+    }
+
+    const isDataUrl = /^data:image\/(png|jpeg|jpg|webp);base64,/i.test(normalized);
+    if (!isDataUrl) {
+      throw new BadRequestException('Imagem do convite inválida');
+    }
+
+    if (normalized.length > 5_000_000) {
+      throw new BadRequestException('Imagem do convite excede o tamanho permitido');
+    }
+
+    return normalized;
   }
 
   private normalizeGiftIdeas(value?: string) {

@@ -29,6 +29,7 @@ export class OrdersController {
       stateCode?: string;
       complement?: string;
       referencePoint?: string;
+      inviteImageUrl?: string;
       themeSlug?: string;
       giftIdeas?: string;
       possibleGuests?: Array<{ name?: string; age?: number }>;
@@ -47,6 +48,7 @@ export class OrdersController {
       stateCode: body.stateCode,
       complement: body.complement,
       referencePoint: body.referencePoint,
+      inviteImageUrl: body.inviteImageUrl,
       themeSlug: body.themeSlug,
       giftIdeas: body.giftIdeas,
       possibleGuests: body.possibleGuests,
