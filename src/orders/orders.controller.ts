@@ -16,7 +16,15 @@ export class OrdersController {
   @Post()
   create(
     @CurrentUser() user: CurrentUserPayload,
-    @Body() body: { name?: string; age?: number; address?: string; themeSlug?: string },
+    @Body()
+    body: {
+      name?: string;
+      age?: number;
+      address?: string;
+      themeSlug?: string;
+      giftIdeas?: string;
+      possibleGuests?: Array<{ name?: string; age?: number }>;
+    },
   ) {
     return this.orders.create({
       userId: user.sub,
@@ -24,6 +32,8 @@ export class OrdersController {
       age: body.age,
       address: body.address,
       themeSlug: body.themeSlug,
+      giftIdeas: body.giftIdeas,
+      possibleGuests: body.possibleGuests,
     });
   }
 

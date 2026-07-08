@@ -8,6 +8,21 @@ type CreateOrderInput = {
   age?: number;
   address?: string;
   themeSlug?: string;
+  giftIdeas?: string;
+  possibleGuests?: Array<{ name?: string; age?: number }>;
+};
+
+type SerializedGuest = {
+  name: string;
+  age: number;
+};
+
+type ThemeCatalogItem = {
+  name: string;
+  slug: string;
+  bgUrl: string | null;
+  musicUrl: string | null;
+  fontUrl: string | null;
 };
 
 @Injectable()
@@ -28,11 +43,13 @@ export class OrdersService {
   }
 
   async create(input: CreateOrderInput) {
-    const name = this.requireString(input.name, 'Nome é obrigatório');
-    const address = this.requireString(input.address, 'Endereço é obrigatório');
+    const name = this.requireString(input.name, 'Nome e obrigatorio');
+    const address = this.requireString(input.address, 'Endereco e obrigatorio');
     const age = this.normalizeAge(input.age);
     const theme = await this.findTheme(input.themeSlug);
     const slug = await this.generateUniqueSlug(name);
+    const giftIdeas = this.normalizeGiftIdeas(input.giftIdeas);
+    const possibleGuests = this.normalizePossibleGuests(input.possibleGuests);
 
     const order = await this.prisma.order.create({
       data: {
@@ -40,6 +57,8 @@ export class OrdersService {
         name,
         age,
         address,
+        giftIdeas,
+        possibleGuests: JSON.stringify(possibleGuests),
         slug,
         themeId: theme?.id,
         status: 'PENDING',
@@ -58,7 +77,7 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Pedido não encontrado');
+      throw new NotFoundException('Pedido nao encontrado');
     }
 
     return this.serializeOrder(order);
@@ -71,7 +90,7 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Pedido não encontrado');
+      throw new NotFoundException('Pedido nao encontrado');
     }
 
     const rendered = await this.inviteService.render(order);
@@ -89,6 +108,8 @@ export class OrdersService {
     name: string;
     age: number;
     address: string;
+    giftIdeas: string;
+    possibleGuests: string;
     slug: string;
     status: string;
     amountCents: number | null;
@@ -102,6 +123,8 @@ export class OrdersService {
       name: order.name,
       age: order.age,
       address: order.address,
+      giftIdeas: order.giftIdeas,
+      possibleGuests: this.parsePossibleGuests(order.possibleGuests),
       slug: order.slug,
       status: order.status,
       amountCents: order.amountCents,
@@ -117,6 +140,15 @@ export class OrdersService {
     const normalized = this.normalizeThemeSlug(rawThemeSlug);
     if (!normalized) {
       return null;
+    }
+
+    const catalogItem = this.getThemeCatalog()[normalized];
+    if (catalogItem) {
+      return this.prisma.theme.upsert({
+        where: { slug: catalogItem.slug },
+        update: catalogItem,
+        create: catalogItem,
+      });
     }
 
     return this.prisma.theme.findUnique({
@@ -141,14 +173,18 @@ export class OrdersService {
       'super-mario': 'super-mario',
       futebol: 'futebol',
       unicornio: 'unicornio',
+      'homem aranha': 'homem-aranha',
+      'homem-aranha': 'homem-aranha',
+      spiderman: 'homem-aranha',
+      'spider-man': 'homem-aranha',
     };
 
     return aliases[normalized] ?? normalized;
   }
 
-  private normalizeAge(age?: number) {
+  private normalizeAge(age?: number, message = 'Idade invalida') {
     if (!Number.isInteger(age) || Number(age) <= 0) {
-      throw new BadRequestException('Idade inválida');
+      throw new BadRequestException(message);
     }
 
     return Number(age);
@@ -162,15 +198,109 @@ export class OrdersService {
     return value.trim();
   }
 
+  private normalizeGiftIdeas(value?: string) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private normalizePossibleGuests(possibleGuests?: Array<{ name?: string; age?: number }>) {
+    if (!Array.isArray(possibleGuests)) {
+      return [] as SerializedGuest[];
+    }
+
+    return possibleGuests
+      .map((guest, index) => {
+        const name = typeof guest?.name === 'string' ? guest.name.trim() : '';
+        const age = guest?.age;
+
+        if (!name && (age === undefined || age === null || age === 0)) {
+          return null;
+        }
+
+        if (!name) {
+          throw new BadRequestException(`Nome do convidado ${index + 1} e obrigatorio`);
+        }
+
+        return {
+          name,
+          age: this.normalizeAge(age, `Idade do convidado ${index + 1} invalida`),
+        };
+      })
+      .filter((guest): guest is SerializedGuest => Boolean(guest));
+  }
+
+  private parsePossibleGuests(rawValue: string) {
+    if (!rawValue) {
+      return [] as SerializedGuest[];
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (!Array.isArray(parsed)) {
+        return [] as SerializedGuest[];
+      }
+
+      return parsed
+        .map((guest) => ({
+          name: typeof guest?.name === 'string' ? guest.name.trim() : '',
+          age: Number(guest?.age),
+        }))
+        .filter((guest) => guest.name && Number.isInteger(guest.age) && guest.age > 0);
+    } catch {
+      return [] as SerializedGuest[];
+    }
+  }
+
+  private getThemeCatalog(): Record<string, ThemeCatalogItem> {
+    return {
+      'super-mario': {
+        name: 'Super Mario',
+        slug: 'super-mario',
+        bgUrl: null,
+        musicUrl: null,
+        fontUrl: null,
+      },
+      futebol: {
+        name: 'Futebol',
+        slug: 'futebol',
+        bgUrl: null,
+        musicUrl: null,
+        fontUrl: null,
+      },
+      unicornio: {
+        name: 'Unicornio',
+        slug: 'unicornio',
+        bgUrl: null,
+        musicUrl: null,
+        fontUrl: null,
+      },
+      'homem-aranha': {
+        name: 'Homem-Aranha',
+        slug: 'homem-aranha',
+        bgUrl: null,
+        musicUrl: null,
+        fontUrl: null,
+      },
+    };
+  }
+
   private async generateUniqueSlug(name: string) {
-    const base = name
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 36) || 'convite';
+    const base =
+      name
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 36) || 'convite';
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const suffix = Math.random().toString(36).slice(2, 8);
@@ -181,6 +311,6 @@ export class OrdersService {
       }
     }
 
-    throw new BadRequestException('Não foi possível gerar o link do convite');
+    throw new BadRequestException('Nao foi possivel gerar o link do convite');
   }
 }

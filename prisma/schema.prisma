@@ -6,6 +6,7 @@ datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -29,41 +30,41 @@ model Theme {
 }
 
 model Order {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  themeId     String?
-  theme       Theme?   @relation(fields: [themeId], references: [id])
+  themeId        String?
+  theme          Theme?   @relation(fields: [themeId], references: [id])
 
-  // 🔽 dados do convite
-  name        String                // nome do aniversariante
-  age         Int                   // idade
-  address     String                // endereço/descrição do evento
-  slug        String   @unique      // usado para o link público: /i/<slug>.html
+  // dados do convite
+  name           String                // nome do aniversariante
+  age            Int                   // idade
+  address        String                // endereco/descricao do evento
+  giftIdeas      String   @default("") // ideias de presentes
+  possibleGuests String   @default("[]") // lista JSON de convidados sugeridos
+  slug           String   @unique      // usado para o link publico: /i/<slug>.html
 
-  // 🔽 status do pedido
-  status      String   @default("PENDING") // PENDING | PAID | GENERATED | CANCELED
+  // status do pedido
+  status         String   @default("PENDING") // PENDING | PAID | GENERATED | CANCELED
 
-  // opcional: pode manter se quiser registrar o preço também no pedido
-  amountCents Int?
+  // opcional: pode manter se quiser registrar o preco tambem no pedido
+  amountCents    Int?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  payment     Payment?
+  payment        Payment?
 }
-
 
 model Payment {
-  id          String   @id @default(cuid())
-  method      String
-  status      String   @default("PENDING")
-  transactionId String  @unique
-  amountCents Int
-  orderId     String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  method        String
+  status        String   @default("PENDING")
+  transactionId String   @unique
+  amountCents   Int
+  orderId       String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
-
