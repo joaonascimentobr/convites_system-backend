@@ -21,6 +21,14 @@ export class OrdersController {
       name?: string;
       age?: number;
       address?: string;
+      zipCode?: string;
+      street?: string;
+      addressNumber?: string;
+      neighborhood?: string;
+      city?: string;
+      stateCode?: string;
+      complement?: string;
+      referencePoint?: string;
       themeSlug?: string;
       giftIdeas?: string;
       possibleGuests?: Array<{ name?: string; age?: number }>;
@@ -31,6 +39,14 @@ export class OrdersController {
       name: body.name,
       age: body.age,
       address: body.address,
+      zipCode: body.zipCode,
+      street: body.street,
+      addressNumber: body.addressNumber,
+      neighborhood: body.neighborhood,
+      city: body.city,
+      stateCode: body.stateCode,
+      complement: body.complement,
+      referencePoint: body.referencePoint,
       themeSlug: body.themeSlug,
       giftIdeas: body.giftIdeas,
       possibleGuests: body.possibleGuests,

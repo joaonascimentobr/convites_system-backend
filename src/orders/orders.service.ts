@@ -7,6 +7,14 @@ type CreateOrderInput = {
   name?: string;
   age?: number;
   address?: string;
+  zipCode?: string;
+  street?: string;
+  addressNumber?: string;
+  neighborhood?: string;
+  city?: string;
+  stateCode?: string;
+  complement?: string;
+  referencePoint?: string;
   themeSlug?: string;
   giftIdeas?: string;
   possibleGuests?: Array<{ name?: string; age?: number }>;
@@ -23,6 +31,18 @@ type ThemeCatalogItem = {
   bgUrl: string | null;
   musicUrl: string | null;
   fontUrl: string | null;
+};
+
+type NormalizedAddress = {
+  address: string;
+  zipCode: string;
+  street: string;
+  addressNumber: string;
+  neighborhood: string;
+  city: string;
+  stateCode: string;
+  complement: string;
+  referencePoint: string;
 };
 
 @Injectable()
@@ -43,9 +63,9 @@ export class OrdersService {
   }
 
   async create(input: CreateOrderInput) {
-    const name = this.requireString(input.name, 'Nome e obrigatorio');
-    const address = this.requireString(input.address, 'Endereco e obrigatorio');
+    const name = this.requireString(input.name, 'Nome é obrigatório');
     const age = this.normalizeAge(input.age);
+    const normalizedAddress = this.normalizeAddress(input);
     const theme = await this.findTheme(input.themeSlug);
     const slug = await this.generateUniqueSlug(name);
     const giftIdeas = this.normalizeGiftIdeas(input.giftIdeas);
@@ -56,7 +76,15 @@ export class OrdersService {
         userId: input.userId,
         name,
         age,
-        address,
+        address: normalizedAddress.address,
+        zipCode: normalizedAddress.zipCode,
+        street: normalizedAddress.street,
+        addressNumber: normalizedAddress.addressNumber,
+        neighborhood: normalizedAddress.neighborhood,
+        city: normalizedAddress.city,
+        stateCode: normalizedAddress.stateCode,
+        complement: normalizedAddress.complement,
+        referencePoint: normalizedAddress.referencePoint,
         giftIdeas,
         possibleGuests: JSON.stringify(possibleGuests),
         slug,
@@ -77,7 +105,7 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Pedido nao encontrado');
+      throw new NotFoundException('Pedido não encontrado');
     }
 
     return this.serializeOrder(order);
@@ -90,7 +118,7 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException('Pedido nao encontrado');
+      throw new NotFoundException('Pedido não encontrado');
     }
 
     const rendered = await this.inviteService.render(order);
@@ -108,6 +136,14 @@ export class OrdersService {
     name: string;
     age: number;
     address: string;
+    zipCode: string;
+    street: string;
+    addressNumber: string;
+    neighborhood: string;
+    city: string;
+    stateCode: string;
+    complement: string;
+    referencePoint: string;
     giftIdeas: string;
     possibleGuests: string;
     slug: string;
@@ -123,6 +159,14 @@ export class OrdersService {
       name: order.name,
       age: order.age,
       address: order.address,
+      zipCode: order.zipCode,
+      street: order.street,
+      addressNumber: order.addressNumber,
+      neighborhood: order.neighborhood,
+      city: order.city,
+      stateCode: order.stateCode,
+      complement: order.complement,
+      referencePoint: order.referencePoint,
       giftIdeas: order.giftIdeas,
       possibleGuests: this.parsePossibleGuests(order.possibleGuests),
       slug: order.slug,
@@ -182,7 +226,99 @@ export class OrdersService {
     return aliases[normalized] ?? normalized;
   }
 
-  private normalizeAge(age?: number, message = 'Idade invalida') {
+  private normalizeAddress(input: CreateOrderInput): NormalizedAddress {
+    const street = this.normalizeOptionalString(input.street);
+    const city = this.normalizeOptionalString(input.city);
+    const stateCode = this.normalizeOptionalString(input.stateCode).toUpperCase();
+
+    if (street || city || stateCode) {
+      const zipCode = this.normalizeZipCode(input.zipCode);
+      const addressNumber = this.requireString(input.addressNumber, 'Número é obrigatório');
+      const neighborhood = this.requireString(input.neighborhood, 'Bairro é obrigatório');
+      const normalizedStreet = this.requireString(input.street, 'Rua é obrigatória');
+      const normalizedCity = this.requireString(input.city, 'Cidade é obrigatória');
+      const normalizedStateCode = this.normalizeStateCode(input.stateCode);
+      const complement = this.normalizeOptionalString(input.complement);
+      const referencePoint = this.normalizeOptionalString(input.referencePoint);
+
+      return {
+        address: this.formatAddress({
+          zipCode,
+          street: normalizedStreet,
+          addressNumber,
+          neighborhood,
+          city: normalizedCity,
+          stateCode: normalizedStateCode,
+          complement,
+          referencePoint,
+        }),
+        zipCode,
+        street: normalizedStreet,
+        addressNumber,
+        neighborhood,
+        city: normalizedCity,
+        stateCode: normalizedStateCode,
+        complement,
+        referencePoint,
+      };
+    }
+
+    const address = this.requireString(input.address, 'Endereço é obrigatório');
+
+    return {
+      address,
+      zipCode: '',
+      street: '',
+      addressNumber: '',
+      neighborhood: '',
+      city: '',
+      stateCode: '',
+      complement: '',
+      referencePoint: '',
+    };
+  }
+
+  private normalizeZipCode(value?: string) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length !== 8) {
+      throw new BadRequestException('CEP inválido');
+    }
+
+    return digits;
+  }
+
+  private normalizeStateCode(value?: string) {
+    const normalized = this.requireString(value, 'UF é obrigatória').toUpperCase();
+    if (normalized.length !== 2) {
+      throw new BadRequestException('UF inválida');
+    }
+
+    return normalized;
+  }
+
+  private formatAddress(address: Omit<NormalizedAddress, 'address'>) {
+    const lines = [
+      `${address.street}, ${address.addressNumber}`,
+      `${address.neighborhood} • ${address.city} - ${address.stateCode}`,
+      `CEP: ${this.formatZipCode(address.zipCode)}`,
+    ];
+
+    if (address.complement) {
+      lines.push(`Complemento: ${address.complement}`);
+    }
+
+    if (address.referencePoint) {
+      lines.push(`Referência: ${address.referencePoint}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatZipCode(value: string) {
+    return `${value.slice(0, 5)}-${value.slice(5)}`;
+  }
+
+  private normalizeAge(age?: number, message = 'Idade inválida') {
     if (!Number.isInteger(age) || Number(age) <= 0) {
       throw new BadRequestException(message);
     }
@@ -196,6 +332,10 @@ export class OrdersService {
     }
 
     return value.trim();
+  }
+
+  private normalizeOptionalString(value?: string) {
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   private normalizeGiftIdeas(value?: string) {
@@ -225,12 +365,12 @@ export class OrdersService {
         }
 
         if (!name) {
-          throw new BadRequestException(`Nome do convidado ${index + 1} e obrigatorio`);
+          throw new BadRequestException(`Nome do convidado ${index + 1} é obrigatório`);
         }
 
         return {
           name,
-          age: this.normalizeAge(age, `Idade do convidado ${index + 1} invalida`),
+          age: this.normalizeAge(age, `Idade do convidado ${index + 1} inválida`),
         };
       })
       .filter((guest): guest is SerializedGuest => Boolean(guest));
@@ -275,7 +415,7 @@ export class OrdersService {
         fontUrl: null,
       },
       unicornio: {
-        name: 'Unicornio',
+        name: 'Unicórnio',
         slug: 'unicornio',
         bgUrl: null,
         musicUrl: null,
@@ -311,6 +451,6 @@ export class OrdersService {
       }
     }
 
-    throw new BadRequestException('Nao foi possivel gerar o link do convite');
+    throw new BadRequestException('Não foi possível gerar o link do convite');
   }
 }

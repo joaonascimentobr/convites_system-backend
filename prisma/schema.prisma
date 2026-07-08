@@ -40,15 +40,23 @@ model Order {
   // dados do convite
   name           String                // nome do aniversariante
   age            Int                   // idade
-  address        String                // endereco/descricao do evento
+  address        String                // endereço formatado do evento
+  zipCode        String   @default("")
+  street         String   @default("")
+  addressNumber  String   @default("")
+  neighborhood   String   @default("")
+  city           String   @default("")
+  stateCode      String   @default("")
+  complement     String   @default("")
+  referencePoint String   @default("")
   giftIdeas      String   @default("") // ideias de presentes
   possibleGuests String   @default("[]") // lista JSON de convidados sugeridos
-  slug           String   @unique      // usado para o link publico: /i/<slug>.html
+  slug           String   @unique      // usado para o link público: /i/<slug>.html
 
   // status do pedido
   status         String   @default("PENDING") // PENDING | PAID | GENERATED | CANCELED
 
-  // opcional: pode manter se quiser registrar o preco tambem no pedido
+  // opcional: pode manter se quiser registrar o preço também no pedido
   amountCents    Int?
 
   createdAt      DateTime @default(now())
