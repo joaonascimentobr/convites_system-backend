@@ -15,6 +15,7 @@ type WebhookMetadata = {
   dataId?: string;
   signature?: string;
   requestId?: string;
+  type?: string;
 };
 
 @Injectable()
@@ -128,9 +129,9 @@ export class PaymentsService {
 
   async handleWebhook(payload: unknown, metadata: WebhookMetadata = {}) {
     const body = this.asRecord(payload);
-    const type = this.readString(body?.type);
+    const type = this.readString(body?.type) ?? this.readString(metadata.type);
 
-    if (type && type !== 'payment') {
+    if (type && type !== 'order' && type !== 'orders') {
       return { ok: true, ignored: true };
     }
 

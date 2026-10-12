@@ -25,9 +25,10 @@ export class PaymentsController {
   async notify(
     @Body() payload: unknown,
     @Query('data.id') dataId?: string,
+    @Query('type') type?: string,
     @Headers('x-signature') signature?: string,
     @Headers('x-request-id') requestId?: string,
   ) {
-    return this.payments.handleWebhook(payload, { dataId, signature, requestId });
+    return this.payments.handleWebhook(payload, { dataId, type, signature, requestId });
   }
 }
