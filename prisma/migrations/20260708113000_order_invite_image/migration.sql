@@ -1,1 +1,0 @@
-ALTER TABLE "Order" ADD COLUMN "inviteImageUrl" TEXT NOT NULL DEFAULT '';
