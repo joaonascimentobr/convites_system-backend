@@ -23,6 +23,7 @@ type MercadoPagoPayment = {
 export class MercadoPagoGateway {
   async checkout(
     input: CheckoutInput & {
+      amountCents: number;
       payerEmail: string;
       description: string;
     },

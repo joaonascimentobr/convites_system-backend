@@ -26,11 +26,9 @@ export class PaymentsService {
 
   async checkout(input: {
     orderId: string;
-    amountCents: number | string;
     method: PaymentMethod | string;
   }) {
     const orderId = input.orderId?.trim();
-    const amountCents = this.normalizeAmount(input.amountCents);
     const method = this.normalizeMethod(input.method);
 
     if (!orderId) {
@@ -45,6 +43,8 @@ export class PaymentsService {
     if (!order) {
       throw new NotFoundException('Pedido não encontrado');
     }
+
+    const amountCents = this.normalizeAmount(order.amountCents);
 
     const existingPayment = await this.prisma.payment.findUnique({
       where: { orderId },
@@ -86,15 +86,13 @@ export class PaymentsService {
     }
   }
 
-  private normalizeAmount(amount: number | string): number {
-    const parsed = typeof amount === 'string' ? Number(amount) : amount;
-
-    if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed <= 0) {
+  private normalizeAmount(amount: number | null): number {
+    if (amount === null || !Number.isFinite(amount) || Number.isNaN(amount) || amount <= 0) {
       throw new BadRequestException('Dados inválidos para checkout');
     }
 
-    const rounded = Math.trunc(parsed);
-    if (rounded !== parsed) {
+    const rounded = Math.trunc(amount);
+    if (rounded !== amount) {
       throw new BadRequestException('Dados inválidos para checkout');
     }
 

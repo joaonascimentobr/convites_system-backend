@@ -8,8 +8,8 @@ export class PaymentsController {
 
   @Post('checkout')
   async checkout(@Body() body: CheckoutInput) {
-    const { orderId, amountCents, method } = body;
-    return this.payments.checkout({ orderId, amountCents, method });
+    const { orderId, method } = body;
+    return this.payments.checkout({ orderId, method });
   }
 
 

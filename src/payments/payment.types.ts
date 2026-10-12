@@ -9,7 +9,6 @@ export enum PaymentStatus {
 
 export type CheckoutInput = {
   orderId: string;
-  amountCents: number;
   method: PaymentMethod;
 };
 
