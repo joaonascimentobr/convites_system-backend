@@ -1,19 +1,16 @@
-import { Controller, Post, Get, Body, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { CheckoutInput, PaymentMethod } from './payment.types';
-
+import { CheckoutInput } from './payment.types';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
-// no controller, só pra diagnosticar
-@Post('checkout')
-async checkout(@Body() body: CheckoutInput) {
-  console.log('checkout body:', body, typeof body.amountCents);
-  const { orderId, amountCents, method } = body;
-  return this.payments.checkout({ orderId, amountCents, method });
-}
+  @Post('checkout')
+  async checkout(@Body() body: CheckoutInput) {
+    const { orderId, amountCents, method } = body;
+    return this.payments.checkout({ orderId, amountCents, method });
+  }
 
 
   @Get('status')
@@ -24,8 +21,13 @@ async checkout(@Body() body: CheckoutInput) {
     return this.payments.getStatus({ transactionId, orderId });
   }
 
-  @Post('pagseguro/notify')
-  async notify(@Body() payload: any) {
-    return this.payments.handleWebhook(payload);
+  @Post('mercadopago/notify')
+  async notify(
+    @Body() payload: unknown,
+    @Query('data.id') dataId?: string,
+    @Headers('x-signature') signature?: string,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.payments.handleWebhook(payload, { dataId, signature, requestId });
   }
 }

@@ -10,17 +10,7 @@ async function bootstrap() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // raw body só no webhook
-  app.use(
-    '/payments/pagseguro/notify',
-    express.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf;
-      },
-    }),
-  );
-
-  const port = parseInt(process.env.PORT ?? '3000', 10); // <<< deixe só esta linha
+  const port = parseInt(process.env.PORT ?? '3000', 10);
   await app.listen(port, '0.0.0.0');
 }
 bootstrap();

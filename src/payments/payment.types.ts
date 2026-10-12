@@ -18,6 +18,8 @@ export type GatewayTx = {
   status: PaymentStatus;
   checkoutUrl?: string | null;
   qrCodeUrl?: string | null;
+  qrCode?: string | null;
+  qrCodeBase64?: string | null;
 };
 
 export type CheckoutOutput = {

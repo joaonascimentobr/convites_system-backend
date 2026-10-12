@@ -1,15 +1,27 @@
-// src/payments/payments.service.ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PagSeguroGateway } from './gateway/pagseguro.gateway';
+import { MercadoPagoGateway } from './gateway/mercadopago.gateway';
 import { PaymentMethod, PaymentStatus } from './payment.types';
+
+type WebhookMetadata = {
+  dataId?: string;
+  signature?: string;
+  requestId?: string;
+};
 
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly pagSeguroGateway: PagSeguroGateway,
+    private readonly mercadoPagoGateway: MercadoPagoGateway,
   ) {}
 
   async checkout(input: {
@@ -27,6 +39,7 @@ export class PaymentsService {
 
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: { user: true },
     });
 
     if (!order) {
@@ -41,14 +54,16 @@ export class PaymentsService {
       return existingPayment;
     }
 
-    const tx = await this.pagSeguroGateway.checkout({
+    const tx = await this.mercadoPagoGateway.checkout({
       orderId,
       amountCents,
       method,
+      payerEmail: order.user.email,
+      description: `Convite ${order.name}`,
     });
 
     try {
-      return await this.prisma.payment.create({
+      const payment = await this.prisma.payment.create({
         data: {
           orderId,
           amountCents,
@@ -57,15 +72,17 @@ export class PaymentsService {
           status: tx.status ?? PaymentStatus.PENDING,
         },
       });
-    } catch (e: unknown) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+
+      return this.serializePayment(payment, tx);
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const concurrent = await this.prisma.payment.findUnique({ where: { orderId } });
         if (concurrent) {
           return concurrent;
         }
       }
 
-      throw e;
+      throw error;
     }
   }
 
@@ -85,16 +102,13 @@ export class PaymentsService {
   }
 
   private normalizeMethod(method: PaymentMethod | string): PaymentMethod {
-    const validMethods: PaymentMethod[] = ['PIX', 'CARD'];
-
-    if (typeof method === 'string') {
-      const normalized = method.trim().toUpperCase();
-      if ((validMethods as readonly string[]).includes(normalized)) {
-        return normalized as PaymentMethod;
-      }
+    if (typeof method === 'string' && method.trim().toUpperCase() === 'PIX') {
+      return 'PIX';
     }
 
-    throw new BadRequestException('Método de pagamento inválido');
+    throw new BadRequestException(
+      'Neste momento o checkout do Mercado Pago está disponível apenas para PIX',
+    );
   }
 
   async getStatus(params: { orderId?: string; transactionId?: string }) {
@@ -108,47 +122,57 @@ export class PaymentsService {
     }
 
     const payment = await this.prisma.payment.findFirst({
-      where: {
-        OR: filters,
-      },
+      where: { OR: filters },
     });
 
     return payment ?? null;
   }
 
-  async handleWebhook(payload: any) {
-    const transactionId = this.extractTransactionId(payload);
-    const status = this.extractStatus(payload);
+  async handleWebhook(payload: unknown, metadata: WebhookMetadata = {}) {
+    const body = this.asRecord(payload);
+    const type = this.readString(body?.type);
 
-    if (!transactionId) {
-      throw new BadRequestException('Webhook sem transactionId');
+    if (type && type !== 'payment') {
+      return { ok: true, ignored: true };
     }
 
+    const transactionId =
+      metadata.dataId ??
+      this.readNestedString(body, ['data', 'id']) ??
+      this.readString(body?.id);
+
+    if (!transactionId) {
+      throw new BadRequestException('Webhook sem data.id');
+    }
+
+    this.validateWebhookSignature(transactionId, metadata);
+
+    const remotePayment = await this.mercadoPagoGateway.getPayment(transactionId);
     const payment = await this.prisma.payment.findUnique({
-      where: { transactionId },
+      where: { transactionId: remotePayment.id },
     });
 
     if (!payment) {
       return { ok: true, ignored: true };
     }
 
-    if (!status || status === payment.status) {
+    if (remotePayment.status === payment.status) {
       return { ok: true, payment };
     }
 
     const updatedPayment = await this.prisma.payment.update({
-      where: { transactionId },
-      data: { status },
+      where: { transactionId: remotePayment.id },
+      data: { status: remotePayment.status },
     });
 
-    if (status === PaymentStatus.PAID) {
+    if (remotePayment.status === PaymentStatus.PAID) {
       await this.prisma.order.update({
         where: { id: payment.orderId },
         data: { status: PaymentStatus.PAID },
       });
     }
 
-    if (status === PaymentStatus.FAILED) {
+    if (remotePayment.status === PaymentStatus.FAILED) {
       await this.prisma.order.update({
         where: { id: payment.orderId },
         data: { status: PaymentStatus.FAILED },
@@ -158,44 +182,70 @@ export class PaymentsService {
     return { ok: true, payment: updatedPayment };
   }
 
-  private extractTransactionId(payload: any): string | null {
-    const rawId =
-      payload?.transactionId ??
-      payload?.transaction_id ??
-      payload?.id ??
-      payload?.data?.transactionId ??
-      payload?.data?.transaction_id ??
-      null;
-
-    return typeof rawId === 'string' && rawId.trim() ? rawId.trim() : null;
+  private serializePayment(payment: any, tx: any) {
+    return {
+      ...payment,
+      checkoutUrl: tx.checkoutUrl ?? null,
+      qrCode: tx.qrCode ?? null,
+      qrCodeBase64: tx.qrCodeBase64 ?? null,
+    };
   }
 
-  private extractStatus(payload: any): PaymentStatus | null {
-    const rawStatus =
-      payload?.status ??
-      payload?.paymentStatus ??
-      payload?.payment_status ??
-      payload?.data?.status ??
-      null;
+  private validateWebhookSignature(transactionId: string, metadata: WebhookMetadata) {
+    const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim();
 
-    if (typeof rawStatus !== 'string') {
-      return null;
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new ServiceUnavailableException(
+          'Webhook do Mercado Pago não está configurado: informe MERCADOPAGO_WEBHOOK_SECRET',
+        );
+      }
+      return;
     }
 
-    const normalized = rawStatus.trim().toUpperCase();
-
-    if (normalized === PaymentStatus.PAID) {
-      return PaymentStatus.PAID;
+    if (!metadata.signature || !metadata.requestId) {
+      throw new UnauthorizedException('Webhook do Mercado Pago sem assinatura');
     }
 
-    if (normalized === PaymentStatus.FAILED) {
-      return PaymentStatus.FAILED;
+    const signatureParts = Object.fromEntries(
+      metadata.signature.split(',').map((part) => {
+        const [key, value] = part.trim().split('=', 2);
+        return [key, value];
+      }),
+    );
+    const ts = signatureParts.ts;
+    const receivedHash = signatureParts.v1;
+
+    if (!ts || !receivedHash) {
+      throw new UnauthorizedException('Assinatura do webhook inválida');
     }
 
-    if (normalized === PaymentStatus.PENDING) {
-      return PaymentStatus.PENDING;
-    }
+    const manifest = `id:${transactionId.toLowerCase()};request-id:${metadata.requestId};ts:${ts};`;
+    const expectedHash = createHmac('sha256', secret).update(manifest).digest('hex');
+    const expectedBuffer = Buffer.from(expectedHash, 'hex');
+    const receivedBuffer = Buffer.from(receivedHash, 'hex');
 
-    return null;
+    if (
+      expectedBuffer.length !== receivedBuffer.length ||
+      !timingSafeEqual(expectedBuffer, receivedBuffer)
+    ) {
+      throw new UnauthorizedException('Assinatura do webhook inválida');
+    }
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  }
+
+  private readString(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private readNestedString(value: Record<string, unknown> | null, path: string[]) {
+    let current: unknown = value;
+    for (const key of path) {
+      current = this.asRecord(current)?.[key];
+    }
+    return this.readString(current);
   }
 }
