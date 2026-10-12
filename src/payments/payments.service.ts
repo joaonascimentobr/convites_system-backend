@@ -52,6 +52,17 @@ export class PaymentsService {
     });
 
     if (existingPayment) {
+      if (existingPayment.status === PaymentStatus.PENDING) {
+        const tx = await this.mercadoPagoGateway.checkout({
+          orderId,
+          amountCents,
+          method,
+          payerEmail: order.user.email,
+          description: `Convite ${order.name}`,
+        });
+        return this.serializePayment(existingPayment, tx);
+      }
+
       return existingPayment;
     }
 
@@ -131,7 +142,7 @@ export class PaymentsService {
     const body = this.asRecord(payload);
     const type = this.readString(body?.type) ?? this.readString(metadata.type);
 
-    if (type && type !== 'order' && type !== 'orders') {
+    if (type && type !== 'payment') {
       return { ok: true, ignored: true };
     }
 
@@ -147,21 +158,33 @@ export class PaymentsService {
     this.validateWebhookSignature(transactionId, metadata);
 
     const remotePayment = await this.mercadoPagoGateway.getPayment(transactionId);
-    const payment = await this.prisma.payment.findUnique({
-      where: { transactionId: remotePayment.id },
-    });
+    const payment = remotePayment.orderId
+      ? await this.prisma.payment.findFirst({
+          where: {
+            OR: [
+              { transactionId: remotePayment.id },
+              { orderId: remotePayment.orderId },
+            ],
+          },
+        })
+      : await this.prisma.payment.findUnique({
+          where: { transactionId: remotePayment.id },
+        });
 
     if (!payment) {
       return { ok: true, ignored: true };
     }
 
-    if (remotePayment.status === payment.status) {
+    if (remotePayment.id === payment.transactionId && remotePayment.status === payment.status) {
       return { ok: true, payment };
     }
 
     const updatedPayment = await this.prisma.payment.update({
-      where: { transactionId: remotePayment.id },
-      data: { status: remotePayment.status },
+      where: { id: payment.id },
+      data: {
+        transactionId: remotePayment.id,
+        status: remotePayment.status,
+      },
     });
 
     if (remotePayment.status === PaymentStatus.PAID) {
@@ -185,8 +208,6 @@ export class PaymentsService {
     return {
       ...payment,
       checkoutUrl: tx.checkoutUrl ?? null,
-      qrCode: tx.qrCode ?? null,
-      qrCodeBase64: tx.qrCodeBase64 ?? null,
     };
   }
 

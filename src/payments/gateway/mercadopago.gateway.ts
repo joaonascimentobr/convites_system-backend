@@ -4,26 +4,19 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { MercadoPagoConfig, Order } from 'mercadopago';
+import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { CheckoutInput, GatewayTx, PaymentStatus } from '../payment.types';
 
-type MercadoPagoOrderPayment = {
+type MercadoPagoPreference = {
   id?: string;
-  status?: string;
-  payment_method?: {
-    ticket_url?: string;
-    redirect_url?: string;
-    qr_code?: string;
-    qr_code_base64?: string;
-  };
+  init_point?: string;
+  sandbox_init_point?: string;
 };
 
-type MercadoPagoOrder = {
-  id?: string;
+type MercadoPagoPayment = {
+  id?: number | string;
   status?: string;
-  transactions?: {
-    payments?: MercadoPagoOrderPayment[];
-  };
+  external_reference?: string;
 };
 
 @Injectable()
@@ -42,49 +35,54 @@ export class MercadoPagoGateway {
     }
 
     if (!input.payerEmail?.trim()) {
-      throw new BadRequestException('O pedido precisa ter um e-mail de comprador válido');
+      throw new BadRequestException('E-mail do pagador é obrigatório');
     }
 
     const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL?.trim();
-    const totalAmount = (input.amountCents / 100).toFixed(2);
-    const testPayerFirstName =
-      process.env.NODE_ENV === 'development'
-        ? process.env.MERCADOPAGO_TEST_PAYER_FIRST_NAME?.trim() || 'APRO'
-        : undefined;
-
+    const baseUrl = process.env.BASE_URL?.trim().replace(/\/$/, '');
+    const returnUrl = this.publicReturnUrl(baseUrl, input.orderId);
     const body = {
-      type: 'online',
-      processing_mode: 'automatic',
+      items: [
+        {
+          id: input.orderId,
+          title: input.description,
+          description: input.description,
+          currency_id: 'BRL',
+          quantity: 1,
+          unit_price: input.amountCents / 100,
+        },
+      ],
+      payer: { email: input.payerEmail.trim() },
       external_reference: input.orderId,
-      total_amount: totalAmount,
-      description: input.description,
-      payer: {
-        email: input.payerEmail.trim(),
-        ...(testPayerFirstName ? { first_name: testPayerFirstName } : {}),
-      },
-      transactions: {
-        payments: [
-          {
-            amount: totalAmount,
-            payment_method: {
-              id: 'pix',
-              type: 'bank_transfer',
-            },
-          },
+      payment_methods: {
+        excluded_payment_types: [
+          { id: 'credit_card' },
+          { id: 'debit_card' },
+          { id: 'prepaid_card' },
+          { id: 'ticket' },
+          { id: 'digital_currency' },
         ],
       },
-      ...(notificationUrl
-        ? { config: { online: { callback_url: notificationUrl } } }
+      ...(notificationUrl ? { notification_url: notificationUrl } : {}),
+      ...(returnUrl
+        ? {
+            back_urls: {
+              success: returnUrl,
+              pending: returnUrl,
+              failure: returnUrl,
+            },
+            auto_return: 'approved',
+          }
         : {}),
     };
 
     try {
-      const response = await this.client.create({
+      const response = await this.preferenceClient.create({
         body,
-        requestOptions: { idempotencyKey: `convites-order-${input.orderId}` },
+        requestOptions: { idempotencyKey: `convites-preference-${input.orderId}` },
       });
 
-      return this.toGatewayTx(response as MercadoPagoOrder);
+      return this.toPreferenceTx(response as MercadoPagoPreference);
     } catch (error: unknown) {
       if (error instanceof ServiceUnavailableException) {
         throw error;
@@ -92,27 +90,51 @@ export class MercadoPagoGateway {
 
       if (error instanceof Error && /access.?token|credentials/i.test(error.message)) {
         throw new ServiceUnavailableException(
-          'Mercado Pago não está configurado: informe MERCADOPAGO_ACCESS_TOKEN',
+          'Mercado Pago não está configurado: verifique as credenciais do ambiente',
         );
       }
 
-      throw new BadGatewayException('Não foi possível criar a order no Mercado Pago');
+      throw new BadGatewayException(
+        'Não foi possível criar o checkout hospedado no Mercado Pago',
+      );
+    }
+  }
+
+  async getCheckout(preferenceId: string): Promise<GatewayTx> {
+    try {
+      const response = await this.preferenceClient.get({ preferenceId });
+      return this.toPreferenceTx(response as MercadoPagoPreference);
+    } catch (error: unknown) {
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+
+      throw new BadGatewayException('Não foi possível consultar o checkout no Mercado Pago');
     }
   }
 
   async getPayment(transactionId: string): Promise<GatewayTx> {
     try {
-      const response = await this.client.get({ id: transactionId });
-      return this.toGatewayTx(response as MercadoPagoOrder);
+      const response = await this.paymentClient.get({ id: transactionId });
+      return this.toPaymentTx(response as MercadoPagoPayment);
     } catch (error: unknown) {
       if (error instanceof ServiceUnavailableException) {
         throw error;
       }
-      throw new BadGatewayException('Não foi possível consultar a order no Mercado Pago');
+
+      throw new BadGatewayException('Não foi possível consultar o pagamento no Mercado Pago');
     }
   }
 
-  private get client(): Order {
+  private get preferenceClient(): Preference {
+    return new Preference(this.config);
+  }
+
+  private get paymentClient(): Payment {
+    return new Payment(this.config);
+  }
+
+  private get config(): MercadoPagoConfig {
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
 
     if (!accessToken) {
@@ -121,29 +143,54 @@ export class MercadoPagoGateway {
       );
     }
 
-    return new Order(new MercadoPagoConfig({ accessToken }));
+    return new MercadoPagoConfig({ accessToken });
   }
 
-  private toGatewayTx(response: MercadoPagoOrder): GatewayTx {
+  private toPreferenceTx(response: MercadoPagoPreference): GatewayTx {
     if (!response.id?.trim()) {
-      throw new BadGatewayException('Mercado Pago retornou uma order sem identificador');
+      throw new BadGatewayException(
+        'Mercado Pago retornou uma preferência sem identificador',
+      );
     }
 
-    const payment = response.transactions?.payments?.[0];
-    const paymentMethod = payment?.payment_method;
+    const checkoutUrl = response.init_point ?? response.sandbox_init_point;
+
+    if (!checkoutUrl) {
+      throw new BadGatewayException(
+        'Mercado Pago retornou uma preferência sem checkout_url',
+      );
+    }
 
     return {
-      // O ID persistido no Payment é o ID da order do Mercado Pago. As
-      // notificações da Orders API usam esse mesmo identificador.
       id: response.id,
-      status: this.mapStatus(payment?.status ?? response.status),
-      checkoutUrl: paymentMethod?.ticket_url ?? paymentMethod?.redirect_url ?? null,
-      qrCode: paymentMethod?.qr_code || null,
-      qrCodeBase64: paymentMethod?.qr_code_base64 || null,
+      status: PaymentStatus.PENDING,
+      checkoutUrl,
     };
   }
 
-  private mapStatus(status?: string): PaymentStatus {
+  private toPaymentTx(response: MercadoPagoPayment): GatewayTx {
+    if (response.id === undefined || response.id === null) {
+      throw new BadGatewayException(
+        'Mercado Pago retornou um pagamento sem identificador',
+      );
+    }
+
+    return {
+      id: String(response.id),
+      orderId: response.external_reference ?? null,
+      status: this.mapStatus(response.status),
+    };
+  }
+
+  private publicReturnUrl(baseUrl: string | undefined, orderId: string) {
+    if (!baseUrl || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(baseUrl)) {
+      return null;
+    }
+
+    return `${baseUrl}/mercadopago/return?order_id=${encodeURIComponent(orderId)}`;
+  }
+
+  private mapStatus(status: string | undefined): PaymentStatus {
     switch (status?.toLowerCase()) {
       case 'approved':
       case 'processed':

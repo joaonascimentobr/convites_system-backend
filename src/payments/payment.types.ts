@@ -14,11 +14,9 @@ export type CheckoutInput = {
 
 export type GatewayTx = {
   id: string;
+  orderId?: string | null;
   status: PaymentStatus;
   checkoutUrl?: string | null;
-  qrCodeUrl?: string | null;
-  qrCode?: string | null;
-  qrCodeBase64?: string | null;
 };
 
 export type CheckoutOutput = {

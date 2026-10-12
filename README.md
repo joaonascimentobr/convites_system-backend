@@ -1,6 +1,6 @@
 # Convites Backend
 
-API NestJS com Prisma, MySQL, autenticação JWT e integração de pagamentos PIX do Mercado Pago.
+API NestJS com Prisma, MySQL, autenticação JWT e integração do Checkout Pro do Mercado Pago.
 
 ## Requisitos
 
