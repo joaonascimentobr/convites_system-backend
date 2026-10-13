@@ -135,7 +135,34 @@ export class PaymentsService {
       where: { OR: filters },
     });
 
-    return payment ?? null;
+    if (!payment) {
+      return null;
+    }
+
+    // The Checkout Pro return includes the real payment id. Use it as a
+    // fallback synchronization path when the provider delivers only a
+    // merchant-order notification or the webhook is delayed.
+    if (payment.status === PaymentStatus.PENDING && params.transactionId) {
+      try {
+        const remotePayment = await this.mercadoPagoGateway.getPayment(
+          params.transactionId,
+        );
+
+        if (
+          remotePayment.orderId &&
+          params.orderId &&
+          remotePayment.orderId !== params.orderId
+        ) {
+          return payment;
+        }
+
+        return this.syncPaymentStatus(payment, remotePayment);
+      } catch {
+        return payment;
+      }
+    }
+
+    return payment;
   }
 
   async handleWebhook(payload: unknown, metadata: WebhookMetadata = {}) {
@@ -175,8 +202,15 @@ export class PaymentsService {
       return { ok: true, ignored: true };
     }
 
-    if (remotePayment.id === payment.transactionId && remotePayment.status === payment.status) {
-      return { ok: true, payment };
+    return { ok: true, payment: await this.syncPaymentStatus(payment, remotePayment) };
+  }
+
+  private async syncPaymentStatus(payment: any, remotePayment: any) {
+    if (
+      remotePayment.id === payment.transactionId &&
+      remotePayment.status === payment.status
+    ) {
+      return payment;
     }
 
     const updatedPayment = await this.prisma.payment.update({
@@ -201,7 +235,7 @@ export class PaymentsService {
       });
     }
 
-    return { ok: true, payment: updatedPayment };
+    return updatedPayment;
   }
 
   private serializePayment(payment: any, tx: any) {
