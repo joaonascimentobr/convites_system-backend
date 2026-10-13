@@ -52,7 +52,9 @@ export class MercadoPagoGateway {
           unit_price: input.amountCents / 100,
         },
       ],
-      payer: { email: input.payerEmail.trim() },
+      ...(process.env.NODE_ENV === 'production'
+        ? { payer: { email: input.payerEmail.trim() } }
+        : {}),
       external_reference: input.orderId,
       payment_methods: {
         excluded_payment_types: [
