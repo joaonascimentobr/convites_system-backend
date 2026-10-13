@@ -153,11 +153,16 @@ export class MercadoPagoGateway {
       );
     }
 
-    const checkoutUrl = response.init_point ?? response.sandbox_init_point;
+    const checkoutUrl =
+      process.env.NODE_ENV === 'production'
+        ? response.init_point
+        : response.sandbox_init_point;
 
     if (!checkoutUrl) {
       throw new BadGatewayException(
-        'Mercado Pago retornou uma preferência sem checkout_url',
+        process.env.NODE_ENV === 'production'
+          ? 'Mercado Pago não retornou o checkout de produção'
+          : 'Mercado Pago não retornou o checkout sandbox',
       );
     }
 
